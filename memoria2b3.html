@@ -1,0 +1,379 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<title>Memorama con mini botón azul 🎵</title>
+<style>
+  body {
+    font-family: Arial, sans-serif;
+    background-color: #002040;
+    color: white;
+    text-align: center;
+    margin: 0;
+    padding: 0;
+  }
+
+  h1 { margin-top: 20px; }
+
+  #top-bar {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 20px;
+    flex-wrap: wrap;
+    margin: 10px auto;
+    font-size: 1.2em;
+  }
+
+  #reset-btn {
+    padding: 8px 18px;
+    font-size: 1em;
+    border: 2px solid rgba(255, 255, 255, 0.6);
+    border-radius: 8px;
+    background-color: #00bbff;
+    color: white;
+    cursor: pointer;
+    z-index: 10;
+    box-shadow: 0 0 10px rgba(255, 255, 255, 0.4);
+    transition: all 0.25s ease;
+  }
+
+  #reset-btn:hover {
+    background-color: #0099dd;
+    box-shadow: 0 0 14px rgba(255, 255, 255, 0.6);
+  }
+
+  #game-board {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 16px;
+    max-width: 470px;
+    margin: 30px auto;
+  }
+
+  .card {
+    aspect-ratio: 1 / 1;
+    border-radius: 15px;
+    cursor: pointer;
+    perspective: 1000px;
+    transition: transform 0.4s, opacity 0.8s;
+  }
+
+  .card-inner {
+    position: relative;
+    width: 100%;
+    height: 100%;
+    transform-style: preserve-3d;
+    transition: transform 0.6s;
+  }
+
+  .card.flipped .card-inner { transform: rotateY(180deg); }
+
+  .card-front, .card-back {
+    position: absolute;
+    width: 100%;
+    height: 100%;
+    border-radius: 15px;
+    backface-visibility: hidden;
+    overflow: hidden;
+  }
+
+  .card-front { background-color: #004080; }
+  .card-back {
+    transform: rotateY(180deg);
+    background-color: #717ec7;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .card-back img {
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+    border-radius: 15px;
+  }
+
+  .card.matched { opacity: 0; pointer-events: none; }
+
+  /* 🟦 Mini botón azul */
+.mini-btn {
+  width: 40px;
+  height: 40px;
+  background-color: #000dff;
+  border: 3px solid #cce6ff;
+  border-radius: 50%;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: transform 0.2s, background-color 0.2s, box-shadow 0.2s;
+  box-shadow: 0 0 6px rgba(0, 128, 255, 0.4);
+}
+.mini-btn:hover {
+  background-color: #3355ff;
+  transform: scale(1.1);
+  box-shadow: 0 0 10px rgba(51, 153, 255, 0.6);
+}
+
+.mini-btn::before {
+  content: "▶";
+  font-size: 18px;
+  color: white;
+  pointer-events: none;
+}
+
+.mini-btn.playing::before {
+  content: "⏸";
+}
+
+  /* Overlays */
+  .overlay-outer {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    backdrop-filter: blur(8px);
+    background-color: rgba(0, 0, 0, 0.3);
+    z-index: 5;
+    pointer-events: none;
+  }
+
+  .overlay-inner {
+    text-align: center;
+    color: white;
+    animation: popIn 0.8s ease-out;
+  }
+
+  @keyframes popIn {
+    0% { opacity: 0; transform: scale(0.7); }
+    60% { opacity: 1; transform: scale(1.05); }
+    100% { opacity: 1; transform: scale(1); }
+  }
+
+  .small-text { font-size: 0.9em; color: #ddd; }
+</style>
+</head>
+<body>
+
+<h1>Memorama de sonidos e imágenes 🎶🖼️</h1>
+
+<div id="top-bar">
+  <div id="stats">
+    ⏱️ Tiempo: <span id="time">0</span> s |
+    ❌ Errores: <span id="errors">0</span>/8
+  </div>
+  <button id="reset-btn">Reiniciar</button>
+</div>
+
+<div id="game-board"></div>
+
+<!-- Overlays -->
+<div id="win-overlay" class="overlay-outer">
+  <div class="overlay-inner">
+    <div style="font-size:2.3em; margin-bottom:10px;">🎉 ¡Lo lograste!</div>
+    <div class="small-text">Material didáctico elaborado por el DTI. Arturo Hernández Maldonado.</div>
+  </div>
+</div>
+
+<div id="lose-overlay" class="overlay-outer">
+  <div class="overlay-inner" style="color:#ffdede;">
+    <div style="font-size:1.9em; margin-bottom:8px;">💀 Juego terminado.</div>
+    <div style="font-size:1.0em;">Excediste 7 errores.</div>
+  </div>
+</div>
+
+<script>
+const pairs = [
+  { id: 1, sound: "1.mp3", image: "1.jpg" },
+  { id: 2, sound: "2.mp3", image: "2.jpg" },
+  { id: 3, sound: "3.mp3", image: "3.jpg" },
+  { id: 4, sound: "4.mp3", image: "4.jpg" },
+  { id: 5, sound: "5.mp3", image: "5.jpg" },
+  { id: 6, sound: "6.mp3", image: "6.jpg" },
+  { id: 7, sound: "7.mp3", image: "7.jpg" },
+  { id: 8, sound: "8.mp3", image: "8.jpg" },
+];
+
+let flippedCards = [];
+let matchedCount = 0;
+let errors = 0;
+let timer = 0;
+let timerInterval = null;
+let timerStarted = false;
+const maxErrors = 8;
+
+const board = document.getElementById("game-board");
+const timeDisplay = document.getElementById("time");
+const errorsDisplay = document.getElementById("errors");
+const winOverlay = document.getElementById("win-overlay");
+const loseOverlay = document.getElementById("lose-overlay");
+const resetBtn = document.getElementById("reset-btn");
+
+function shuffle(array) {
+  for (let i = array.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [array[i], array[j]] = [array[j], array[i]];
+  }
+  return array;
+}
+
+function startGame() {
+  board.innerHTML = "";
+  hideOverlays();
+  flippedCards = [];
+  matchedCount = 0;
+  errors = 0;
+  timer = 0;
+  timerStarted = false;
+  clearInterval(timerInterval);
+  timeDisplay.textContent = "0";
+  errorsDisplay.textContent = "0";
+
+  const cards = [];
+  pairs.forEach(p => {
+    cards.push({ type: "sound", id: p.id, content: p.sound });
+    cards.push({ type: "image", id: p.id, content: p.image });
+  });
+
+  shuffle(cards).forEach(item => {
+    const card = document.createElement("div");
+    card.classList.add("card");
+    card.dataset.id = item.id;
+    card.dataset.type = item.type;
+
+    const inner = document.createElement("div");
+    inner.classList.add("card-inner");
+
+    const front = document.createElement("div");
+    front.classList.add("card-front");
+
+    const back = document.createElement("div");
+    back.classList.add("card-back");
+
+    if (item.type === "image") {
+      const img = document.createElement("img");
+      img.src = item.content;
+      img.alt = `Imagen ${item.id}`;
+      back.appendChild(img);
+    } else {
+      const btn = document.createElement("div");
+      btn.classList.add("mini-btn");
+      const audio = new Audio(item.content);
+      audio.preload = "auto";
+
+      // reproducir/pausar manualmente
+      btn.addEventListener("click", e => {
+        e.stopPropagation();
+        if (audio.paused) {
+          audio.play();
+        } else {
+          audio.pause();
+        }
+      });
+
+      // cuando empieza a reproducir, muestra las barras ⏸
+      audio.addEventListener("play", () => {
+        btn.classList.add("playing");
+      });
+
+      // cuando se pausa o termina, vuelve al triángulo ▶
+      audio.addEventListener("pause", () => {
+        btn.classList.remove("playing");
+      });
+      audio.addEventListener("ended", () => {
+        btn.classList.remove("playing");
+      });
+
+      back.appendChild(btn);
+      card.audio = audio;
+      card.btn = btn;
+    }
+
+    inner.appendChild(front);
+    inner.appendChild(back);
+    card.appendChild(inner);
+
+    card.addEventListener("click", () => flipCard(card, item));
+    board.appendChild(card);
+  });
+}
+
+function startTimer() {
+  timerInterval = setInterval(() => {
+    timer++;
+    timeDisplay.textContent = timer;
+  }, 1000);
+}
+
+function flipCard(card, item) {
+  if (!timerStarted) { startTimer(); timerStarted = true; }
+
+  if (card.classList.contains("flipped") || card.classList.contains("matched") || flippedCards.length === 2) return;
+  card.classList.add("flipped");
+
+  // 🔊 reproducir automáticamente
+  if (item.type === "sound" && card.audio) {
+    card.audio.currentTime = 0;
+    card.audio.play();
+  } else if (item.type === "image") {
+    const related = pairs.find(p => p.id == item.id);
+    if (related) {
+      const audio = new Audio(related.sound);
+      audio.volume = 0.5;
+      audio.play();
+    }
+  }
+
+  flippedCards.push(card);
+
+  if (flippedCards.length === 2) {
+    const [first, second] = flippedCards;
+    if (first.dataset.id === second.dataset.id && first.dataset.type !== second.dataset.type) {
+      new Audio("acierto.mp3").play();
+      setTimeout(() => {
+        first.classList.add("matched");
+        second.classList.add("matched");
+        flippedCards = [];
+        matchedCount++;
+        if (matchedCount === pairs.length) endGame(true);
+      }, 600);
+    } else {
+      errors++;
+      errorsDisplay.textContent = errors;
+      setTimeout(() => {
+        first.classList.remove("flipped");
+        second.classList.remove("flipped");
+        flippedCards = [];
+        if (errors >= maxErrors) endGame(false);
+      }, 1000);
+    }
+  }
+}
+
+function hideOverlays() {
+  winOverlay.style.display = "none";
+  loseOverlay.style.display = "none";
+}
+
+function endGame(won) {
+  clearInterval(timerInterval);
+  document.querySelectorAll(".card").forEach(c => c.style.pointerEvents = "none");
+  if (won) {
+    new Audio("victoria.mp3").play();
+    winOverlay.style.display = "flex";
+  } else {
+    new Audio("error.mp3").play();
+    loseOverlay.style.display = "flex";
+  }
+}
+
+resetBtn.addEventListener("click", startGame);
+startGame();
+</script>
+</body>
+</html>
